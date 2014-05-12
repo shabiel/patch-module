@@ -81,7 +81,6 @@ EXPORT(A1AEFAIL,SN,ROOT) ; Export KIDS patch to the File system
  M @SN=@OLDSN
  K OLDSN,I,Q,PARS ; removed unneeded vars from job
  ;
- ;
  ; Set A1AEFAIL to a default value...
  S A1AEFAIL=0  ; We didn't fail (yet)!
  ;
@@ -89,6 +88,8 @@ EXPORT(A1AEFAIL,SN,ROOT) ; Export KIDS patch to the File system
  N D S D=$$D^A1AEOS() ; Delimiter
  I $E(ROOT,$L(ROOT))'=D S ROOT=ROOT_D ; Add directory delimiter to end if necessary
  ;
+ N PD4FS S PD4FS=$TR(PD,"*","_") ; Package descriptor fur filesystem; like OSEHRA one.
+ I ROOT'[PD4FS S ROOT=ROOT_PD4FS_D  
  S ROOT=ROOT_"KIDComponents"_D
  N % S %=$$MKDIR^A1AEOS(ROOT)
  I % D EN^DDIOL($$RED("Couldn't create KIDCommponents directory")) QUIT
@@ -226,7 +227,7 @@ KRN(FAIL,KIDGLO,ROOT) ; Print OPT and KRN sections
  . N CNT S CNT=0                                                           ; Sub counter for export
  . N IEN F IEN=0:0 S IEN=$O(@KIDGLO@("KRN",FNUM,IEN)) Q:'IEN  D  Q:$G(POP)  ; For each Kernel component IEN
  . . N ENTRYNAME S ENTRYNAME=$P(@KIDGLO@("KRN",FNUM,IEN,0),U)              ; .01 for the component
- . . S ENTRYNAME=$TR(ENTRYNAME,"\/!@#$%^&*()","------------")              ; Replace punc with dashes
+ . . S ENTRYNAME=$TR(ENTRYNAME,"\/!@#$%^&*()?","-------------")              ; Replace punc with dashes
  . . D OPEN^%ZISH("ENT",PATH,ENTRYNAME_".zwr","W")                         ; Open file
  . . I POP S FAIL=1 QUIT
  . . U IO
@@ -307,6 +308,46 @@ FNDPRM2(KIDGLO,PARMNM) ; $$ ; Find IEN of parameter in 8989.51 matching PARMNM
  . I NM=PARMNM S OUT=I
  QUIT OUT
  ;
+EXPKIDIN ; [PUBLIC] Procedure; Interactive dialog with User to export a single build
+ N DIC
+ N X,Y,DIRUT,DIROUT
+ S DIC(0)="AEMQ",DIC=9.6,DIC("S")="I $P(^(0),U,3)'[12" D ^DIC
+ N A1AEFAIL S A1AEFAIL=0
+ I +Y>0 D EXPKID96(.A1AEFAIL,+Y)
+ QUIT
+ ; 
+EXPKID96(A1AEFAIL,XPDA) ; [PUBLIC] Procedure; Export a KIDS file using Build file definition
+ ; .A1AEFAIL - Did we fail?
+ ; XPDA - Build file IEN
+ ; TODO: clean up!!! 
+ ;
+ S A1AEFAIL=0 
+ N Z S Z=$G(^XPD(9.6,XPDA,0))
+ I 12[$P(Z,U,3) QUIT  ; Multi or Global package; can't do!!! I am fricking primitive.
+ ; 
+ ; Most of the lines below are copied from KIDS
+ ;XPDI=name^1=use current transport global
+ N XPDERR,XPDGREF,XPDNM,XPDVER  
+ N XPDI S XPDI=$P(Z,U)_U
+ N XPDT S XPDT=0 
+ D PCK^XPDT(XPDA,XPDI)  ; Builds XPDT data structures
+ S $P(XPDT(1),U,5)=1 ; Don't send package application history (PAH)
+ ;  
+ S XPDA=XPDT(1),XPDNM=$P(XPDA,U,2) D  G:$D(XPDERR) ABORT^XPDT 
+ . W !?5,XPDNM,"..." S XPDGREF="^XTMP(""XPDT"","_+XPDA_",""TEMP"")"
+ . ; if package file link then set XPDVER=version number^package name 
+ . S XPDA=+XPDA,XPDVER=$S($P(^XPD(9.6,XPDA,0),U,2):$$VER^XPDUTL(XPDNM)_U_$$PKG^XPDUTL(XPDNM),1:"")
+ . ;Inc the Build number
+ . S $P(^XPD(9.6,XPDA,6.3),U)=$G(^XPD(9.6,XPDA,6.3))+1
+ . K ^XTMP("XPDT",XPDA)
+ . 
+ . N X F X="DD^XPDTC","KRN^XPDTC","QUES^XPDTC","INT^XPDTC","BLD^XPDTC" D @X Q:$D(XPDERR)
+ . D:'$D(XPDERR) PRET^XPDT 
+ W !! F XPDT=1:1:XPDT W "Transport Global ^XTMP(""XPDT"","_+XPDT(XPDT)_") created for ",$P(XPDT(XPDT),U,2),!
+ N A1AEFAIL
+ D EXPORT^A1AEK2VC(.A1AEFAIL,$NA(^XTMP("XPDT",+XPDT(XPDT))),$$DEFDIR^%ZISH()) 
+ K ^XTMP("XPDT",+XPDT(XPDT))
+ QUIT
 ZWRITE(NAME,QS,QSREP) ; Replacement for ZWRITE ; Public Proc
  GOTO ZWRITE0^A1AEK2V0 ; Moved to extension routine for size
  ;
@@ -315,13 +356,23 @@ RED(X) ; Convenience method for Sam to see things on the screen.
  ;
 TEST D EN^XTMUNIT($T(+0),1,1) QUIT
  ;
-T3 ; @TEST Export components for one KIDS build
+T3 ; @TEST Export components for one KIDS build from Patch module
  N I F I=0:0 S I=$O(^A1AE(11005,I)) Q:'I  D EN(I)
  QUIT
  ;
+T4 ; @TEST Export components from KIDS itself
+ ; Loop through all the TIU patches
+ N A1AEFAIL S A1AEFAIL=0
+ N A1AEI S A1AEI="TIU"
+ F  S A1AEI=$O(^XPD(9.6,"B",A1AEI)) Q:($P(A1AEI,"*")'="TIU")  D
+ . N XPDA S XPDA=$O(^(A1AEI,""))
+ . D EXPKID96(.A1AEFAIL,XPDA)
+ . I A1AEFAIL D FAIL^XTMUNIT("Last export didn't work")  
+ QUIT 
+ ;
 ASSERT(X,Y) ; Internal assertion function
- N MUNIT S MUNIT=$$INMUNIT()
- I MUNIT D CHKTF^XTMUNIT(X,$G(Y))
+ ; N MUNIT S MUNIT=$$INMUNIT()
+ ; I MUNIT D CHKTF^XTMUNIT(X,$G(Y)) 
  E  I 'X S $EC=",U-ASSERTION-FAILED,"
  QUIT
  ;
@@ -329,3 +380,4 @@ INMUNIT() ; Am I being invoked from M-Unit?
  N MUNIT S MUNIT=0
  N I F I=1:1:$ST I $ST(I,"PLACE")["XTMUNIT" S MUNIT=1
  Q MUNIT
+ ;
