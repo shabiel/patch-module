@@ -316,6 +316,56 @@ EXPKIDIN ; [PUBLIC] Procedure; Interactive dialog with User to export a single b
  I +Y>0 D EXPKID96(.A1AEFAIL,+Y)
  QUIT
  ; 
+EXPFILIN ; [PUBLIC] Procedure; Interactive export a build based on a file... can do multibuilds
+ N DIR,DIRUT,DIROUT,X,Y,DTOUT,DA
+ S DIR(0)="F^1:1000" S DIR("A")="Enter a file to import then break down" D ^DIR
+ ;
+ I $D(DIRUT)!($D(DTOUT)) QUIT
+ I Y="" QUIT
+ ;
+ N D S D=$$D^A1AEOS()
+ N DIR,FN
+ I Y[D S DIR=$P(Y,D,1,$L(Y,D)-1),FN=$P(Y,D,$L(Y,D))
+ E  S DIR=$$DEFDIR^%ZISH(),FN=Y
+ ;
+ N % S %=$$FTG^%ZISH(DIR,FN,$NA(^TMP("A1AEK2VC-IN",$J,1,0)),3)
+ I '% W "FAILED",! QUIT
+ K %
+ ;
+ D ANALYZE^A1AEK2M1($NA(^TMP("A1AEK2VC-OUT",$J)),$NA(^TMP("A1AEK2VC-IN",$J)))
+ ;
+ N R S R=$NA(^TMP("A1AEK2VC-OUT",$J))
+ N PD S PD="" F  S PD=$O(@R@(PD)) Q:PD=""  D
+ . N S S S=$NA(@R@(PD))
+ . ; Stanza: Find $KID; quit if we can't find it. Otherwise, rem where it is.
+ . N I,T F I=0:0 S I=$O(@S@(I)) Q:'I  S T=^(I) Q:($E(T,1,4)="$KID")
+ . I T'["$KID" QUIT
+ . N SVLN S SVLN=I ; Saved line
+ . K T
+ . ;
+ . ; Get rid of the next two lines (**INSTALL NAME** and its value)
+ . S SVLN=$O(@S@(SVLN))
+ . S SVLN=$O(@S@(SVLN))
+ . ;
+ . K ^XTMP("FILEK2VC")
+ . S ^XTMP("FILEK2VC",0)=$$FMADD^XLFDT(DT,1)_U_DT_U_"KIDS to Version Control"
+ . N L1,L2
+ . N DONE S DONE=0
+ . F  D  Q:DONE
+ . . S L1=$O(@S@(SVLN))  ; first line
+ . . N L1TXT S L1TXT=^(L1)                   ; its text
+ . . I $E(L1TXT,1,8)="$END KID" S DONE=1 QUIT  ; quit if we are at the end
+ . . S L2=$O(@S@(L1))    ; second line
+ . . N L2TXT S L2TXT=^(L2)                   ; its text
+ . . S @("^XTMP(""FILEK2VC"","""_PD_""","_L1TXT)=L2TXT      ; Set our data into our global
+ . . S SVLN=L2                                 ; move data pointer to last accessed one
+ . ;
+ . N A1AEFAIL S A1AEFAIL=0
+ . N SN S SN=$NA(^XTMP("FILEK2VC",PD)) ; Short name... I am tired of typing.
+ . D EXPORT(.A1AEFAIL,SN,DIR)
+ . I A1AEFAIL D EN^DDIOL($$RED("A failure has occured"))
+ QUIT
+ ;
 EXPKID96(A1AEFAIL,XPDA) ; [PUBLIC] Procedure; Export a KIDS file using Build file definition
  ; .A1AEFAIL - Did we fail?
  ; XPDA - Build file IEN
