@@ -1,4 +1,4 @@
-A1AEUT1 ;ven/smh-unit tests for the patch module ;2015-06-14  4:06 AM
+A1AEUT1 ;ven/smh-unit tests for the patch module ;2015-07-27  7:59 PM
  ;;2.5;PATCH MODULE;;Jun 13, 2015
  ;;Submitted to OSEHRA 3 June 2015 by the VISTA Expertise Network
  ;;Licensed under the terms of the Apache License, version 2.0
@@ -71,6 +71,8 @@ MKSTREAM ; @TEST Make OSEHRA Stream
  S FDA(11007.1,IENS,.01)="OSEHRA VISTA" ; Name
  S FDA(11007.1,IENS,.02)="YES" ; Primary?
  S FDA(11007.1,IENS,.05)="OV" ; Abbreviation
+ S FDA(11007.1,IENS,.06)="NO" ; Subscription
+ S FDA(11007.1,IENS,.07)="FORUM.OSEHRA.ORG"
  N DIERR,ERR
  D UPDATE^DIE("E",$NA(FDA),$NA(IEN),$NA(ERR))
  I $D(DIERR) S $EC=",U-FILEMAN-ERROR,"
@@ -102,7 +104,7 @@ MKPKG() ; Create a new package
  S FDA(9.4,"+1,",.01)="TEST PACKAGE"
  S FDA(9.4,"+1,",1)="ZZZ"
  S FDA(9.4,"+1,",2)="Used for testing the Patch Module"
- S FDA(9.49,"+2,+1,",.01)=1 ; version number
+ S FDA(9.49,"+2,+1,",.01)="1.0" ; version number
  D UPDATE^DIE("E","FDA","IEN")
  I $D(DIERR) S $EC=",U-FILEMAN-ERROR,"
  QUIT IEN(1)
@@ -244,7 +246,9 @@ PATCHNO ; @TEST Obtain next patch number
  S DIC("DR")="5///TEST"
  S DIC(0)="L"
  D NUM^A1AEUTL
- D CHKEQ(A1AENB,$G(A1AEUT1PN,A1AESTREAM)) ; cuz first patch now is switch patch; next patch is the new one.
+ N PATNUMTOCHECK S PATNUMTOCHECK=$S(A1AESTREAM>1:A1AESTREAM+1,1:A1AESTREAM) ; cuz first patch now is switch patch; next patch is the new one.
+ I $D(A1AEUT1PN) S A1AEUT1PN=$S(A1AESTREAM>1:A1AEUT1PN+1,1:A1AEUT1PN)
+ D CHKEQ(A1AENB,$G(A1AEUT1PN,PATNUMTOCHECK))
  D ASSERT(A1AEPD["ZZZ*1")
  D ASSERT($D(^A1AE(11005,"D",A1AEPKIF)))
  QUIT
@@ -377,17 +381,6 @@ PATCHVER ; @TEST Verify a Patch
  N FDA
  S FDA(11005,DA_",",8)="v" D FILE^DIE("E",$NA(FDA))
  D CHKEQ($P(^A1AE(11005,DA,0),U,8),"v")
- QUIT
- ;
-PATCHEX ; @TEST Export Verified patch to KIDS build on file system
- N A1AEUT1IEN S A1AEUT1IEN=DA
- D ^A1AEM2K
- D OPEN^%ZISH("KIDFIL",$$DEFDIR^%ZISH(),"ZZZ-2_SEQ-10001_PAT-10001.KID","R")
- U IO
- N %1,%2,%3
- R %1:1,%2:1,%3:1
- D CLOSE^%ZISH("KIDFIL")
- D ASSERT(%3["**KIDS**")
  QUIT
  ;
 PATCH2 ; @TEST Create a second patch - complete this one
